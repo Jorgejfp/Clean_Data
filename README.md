@@ -1,4 +1,4 @@
-![Preview of Data Cleaning and Language Detection Tool](assets/preview.png)
+![Preview of Data Cleaning and Language Detection Tool](assets/Clean_data.png)
 
 # Data Cleaning and Language Detection Tool
 
