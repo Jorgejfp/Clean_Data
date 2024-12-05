@@ -1,40 +1,77 @@
-# Importer les bibliothèques nécessaires
-import pandas as pd
+import os
+import json
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import re
-from langdetect import detect, DetectorFactory
-from langdetect.lang_detect_exception import LangDetectException
+import pandas as pd
 import pycountry
 import langcodes
+import re
+from langdetect import detect, LangDetectException
+from oauth2client.service_account import ServiceAccountCredentials
+from flask import Flask
 
-# Fixer la graine pour des résultats cohérents avec langdetect
-DetectorFactory.seed = 0
+app = Flask(__name__)
 
-# Authentification avec Google Sheets
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-# Charger les informations d'identification depuis le fichier JSON
-creds = ServiceAccountCredentials.from_json_keyfile_name('awesome-height-441419-j4-5f2808cabaf5.json', scope)
-client = gspread.authorize(creds)
+# Definir el alcance de las credenciales
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
-# Ouvrir la première feuille Google Sheets pour lire les données
-sheet_input = client.open_by_url("https://docs.google.com/spreadsheets/d/1eZs3-64SL92NrcmViDehMDTn8fIJTdCZqvsshQT1nek/edit?usp=sharing")
-worksheet1 = sheet_input.get_worksheet(0)  # Accéder à la première feuille (index 0)
-data = pd.DataFrame(worksheet1.get_all_records())  # Lire toutes les données sous forme de DataFrame
+# Fixer la graine pour des résultats cohérents dans langdetect
+#DetectorFactory.seed = 0
 
-# Filtrer les colonnes nécessaires
+google_credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+
+if google_credentials_json:
+    # Cargar las credenciales desde el JSON que se obtiene de la variable de entorno
+    creds_dict = json.loads(google_credentials_json)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+else:
+    print("No se encontraron las credenciales de Google en la variable de entorno.")
+
+@app.route("/")
+def home():
+    return("app server is running")
+@app.route("/clean", methods=["POST"])
+def cleaning():
+    # Leer los datos de la hoja de cálculo
+    data = pd.DataFrame(worksheet1.get_all_records())
+
+    # Verificar el cargado de los datos
+    print("Données originales chargées :")
+    print(data.head())  # Imprimir las primeras filas para verificación
+
+    # Limpiar las columnas excepto las especiales
+    for column in required_columns:
+        if column not in special_columns:
+            data[column] = data[column].apply(clean_text)
+
+    # Escribir los datos limpios en la hoja 2
+    worksheet2.clear()
+    worksheet2.update([data.columns.values.tolist()] + data.values.tolist())
+
+    # Mensaje de éxito
+    return jsonify({"message": "Los datos han sido limpiados y actualizados en la hoja 2 con éxito."}), 200
+
+# Abre la hoja de cálculo usando la URL
+sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1klDIZ9ZBhmiUZ_FwS0DejKOl8iRph6ewW4C6JAUJ598/edit?usp=sharing")
+
+# Acceder a la hoja 1 (index 0) para leer los datos originales
+worksheet1 = sheet.get_worksheet(0)
+data = pd.DataFrame(worksheet1.get_all_records())
+
+# Verificar el cargado de los datos
+print("Données originales chargées :")
+print(data.head())  # Imprimir las primeras filas para verificación
+
+# Columnas requeridas para filtrar
 required_columns = [
-    "description", "headline", "location", "firstName", "lastName", "fullName",
-    "company", "jobTitle", "jobDescription", "jobLocation", "company2",
-    "jobTitle2", "jobDescription2", "baseUrl", "professionalEmail"
-]
+    "Profile Url", "Full Name", "First Name", "Last Name", "Job Title", "Additional Info", 
+    "Location", "Company", "Company Url", "Industry", "Company 2", "Company Url 2", 
+    "Job Date Range", "Job Title 2", "Job Date Range 2", "School", "School Degree",
+    "School Date Range", "School 2", "School Degree 2", "School Date Range 2"]
+
 data = data[required_columns]
 
-# Dictionnaire pour corriger les erreurs courantes de codage des caractères
+# Diccionario de reemplazo para corregir errores comunes de codificación
 replacement_dict = {
     "Ã¡": "á", "Ã©": "é", "Ã­": "í", "Ã³": "ó", "Ãº": "ú",
     "Ã±": "ñ", "Ã": "Ñ", "â": "'", "â": "-", "Ã¼": "ü",
@@ -42,60 +79,69 @@ replacement_dict = {
     "â„¢": "™", "âˆ’": "-", "Â": ""
 }
 
-# Fonction pour nettoyer le texte
+# Columnas especiales donde no se aplica eliminación de caracteres especiales
+special_columns = {"email", "mail", "linkedinProfile", "baseUrl", "professionalEmail"}
+
+# Función para limpiar el texto en las columnas no especiales
 def clean_text(text):
-    if pd.isna(text):  # Vérifier si le texte est NaN
+    if pd.isna(text):
         return ""
-    for bad, good in replacement_dict.items():  # Remplacer les caractères erronés
+    text = str(text)  # Convertir en cadena para manejar valores no textuales
+    for bad, good in replacement_dict.items():
         text = text.replace(bad, good)
-    return re.sub(r'[^\w\s-]', '', text).strip()  # Supprimer les caractères indésirables
+    return re.sub(r'[^\w\s-]', '', text).strip()
 
-# Appliquer la fonction de nettoyage sur les colonnes nécessaires
+# Limpiar las columnas excepto las especiales
 for column in required_columns:
-    data[column] = data[column].apply(clean_text)
+    if column not in special_columns:
+        data[column] = data[column].apply(clean_text)
 
-# Fonction pour obtenir la langue par défaut d'un pays en utilisant pycountry et langcodes
+# Verificar las columnas después de limpiar
+print("Données après le nettoyage :")
+print(data.head())
+
+# Función para obtener el idioma predeterminado de un país usando pycountry y langcodes
 def get_language_from_country(country_name):
     try:
-        country = pycountry.countries.lookup(country_name)  # Rechercher le pays
-        # Obtenir la langue par défaut
+        country = pycountry.countries.lookup(country_name)
         language = langcodes.standardize_tag(langcodes.Language.get(country.alpha_2).language)
         return language
     except LookupError:
         return None
 
-# Fonction pour détecter la langue à partir du texte ou du pays
+# Función para detectar el idioma basado en el texto o el país
 def detect_language(description, headline, location):
-    # Essayer de détecter la langue depuis 'description' ou 'headline'
     for text in [description, headline]:
         if text:
             try:
                 return detect(text)
             except LangDetectException:
-                continue  # Passer au prochain texte si la détection échoue
-    
-    # Si la détection échoue, inférer depuis le pays dans 'location'
+                continue
     for country in pycountry.countries:
         if country.name.lower() in location.lower():
             lang = get_language_from_country(country.name)
             if lang:
                 return lang
-    return "en"  # Par défaut, retourner "en" pour l'anglais
+    return "en"
 
-# Appliquer la détection de langue et ajouter une colonne correspondante dans le DataFrame
-data['language'] = data.apply(
+# Aplicar la detección de idioma
+'''data['language'] = data.apply(
     lambda row: detect_language(row['description'], row['headline'], row['location']),
     axis=1
-)
+)'''
 
-# Ouvrir la deuxième feuille Google Sheets pour écrire les données nettoyées
-sheet_output = client.open_by_url("https://docs.google.com/spreadsheets/d/1xRISBywX7X-tK3HSWeDlup-_VcFXc0dGwyarXvfMwCM/edit?usp=sharing")
-worksheet2 = sheet_output.get_worksheet(0)  # Accéder à la première feuille (index 0)
+# Verificar los datos después de la detección de idioma
+print("Données après la détection de la langue :")
+#print(data.head())
 
-# Effacer le contenu de la feuille avant d'écrire de nouvelles données
+# Acceder a la hoja 2 (index 1) para escribir los datos limpiados
+worksheet2 =  sheet.worksheet('Sheet6')
 worksheet2.clear()
 
-# Écrire les données nettoyées et enrichies dans la feuille
-worksheet2.update([data.columns.values.tolist()] + data.values.tolist())
+# Escribir los datos en la hoja 2
+#worksheet2.update([data.columns.values.tolist()] + data.values.tolist())
 
-print("Les données avec détection de langue ont été nettoyées et copiées avec succès dans la feuille 2.")
+print("Les données avec détection de langue ont été copiées et nettoyées avec succès dans la Feuille 2.")
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
