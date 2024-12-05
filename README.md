@@ -1,5 +1,5 @@
-![Preview of Data Cleaning and Language Detection Tool](assets/Clean_Data.png)
-
+#About
+  ![Descripción de la Imagen]((https://github.com/Jorgejfp/Clean_Data/blob/main/assets/Clean_Data.png)?raw=true) 
 # Data Cleaning and Language Detection Tool
 
 This repository contains a robust **data cleaning and language detection tool** designed to process data from Google Sheets, clean textual inconsistencies, and identify the language of textual content. The tool leverages **Python** libraries like `pandas`, `gspread`, `langdetect`, `pycountry`, and `langcodes` for comprehensive data enrichment.
