@@ -20,7 +20,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_name('awesome-height-441419-
 client = gspread.authorize(creds)
 
 # Ouvrir la première feuille Google Sheets pour lire les données
-sheet_input = client.open_by_url("https://docs.google.com/spreadsheets/d/1eZs3-64SL92NrcmViDehMDTn8fIJTdCZqvsshQT1nek/edit?usp=sharing")
+sheet_input = client.open_by_url("https://docs.google.com/spreadsheets/d/1eZs3-64SL92NrcmViDehMDTn8fIJTdCZqvsshQT1nekk/edit?usp=sharing")
 worksheet1 = sheet_input.get_worksheet(0)  # Accéder à la première feuille (index 0)
 data = pd.DataFrame(worksheet1.get_all_records())  # Lire toutes les données sous forme de DataFrame
 
@@ -70,7 +70,7 @@ def detect_language(description):
 data['language'] = data['description'].apply(detect_language)
 
 # Ouvrir la deuxième feuille Google Sheets pour écrire les données nettoyées
-sheet_output = client.open_by_url("https://docs.google.com/spreadsheets/d/1xRISBywX7X-tK3HSWeDlup-_VcFXc0dGwyarXvfMwCM/edit?usp=sharing")
+sheet_output = client.open_by_url("https://docs.google.com/spreadsheets/d/1xRISBywX7X-tK3HSWeDlup-_VcFXc0dGwyarXvfMwCMk/edit?usp=sharing")
 worksheet2 = sheet_output.get_worksheet(0)  # Accéder à la première feuille (index 0)
 
 # Effacer le contenu de la feuille avant d'écrire de nouvelles données
